@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Humanoid Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+[hidden]{display:none!important}
+html{color-scheme:light dark}
+body{margin:0}
+
+/* Layout: a square turntable stage for the model, a row of animation controls and a short spec list beneath. */
+:root{
+  --bg:#F1EEF6; --surface:#FFFFFF; --fg:#1D1830; --muted:#5D567A; --line:#DCD6EA;
+  --accent:#5E44B8; --accent-fg:#FFFFFF; --stage-a:#F7F3FD; --stage-b:#D6CAEE;
+  --display:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#110E19; --surface:#1B1727; --fg:#ECE8F6; --muted:#A79FC3; --line:#2F2942;
+    --accent:#B7A3FF; --accent-fg:#160F2A; --stage-a:#2E2546; --stage-b:#120E1D;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#110E19; --surface:#1B1727; --fg:#ECE8F6; --muted:#A79FC3; --line:#2F2942;
+  --accent:#B7A3FF; --accent-fg:#160F2A; --stage-a:#2E2546; --stage-b:#120E1D;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--body); font-size:15px; line-height:1.5;
+  padding-block:24px 36px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:880px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
+h1{margin:0; font-family:var(--display); font-weight:700; font-size:clamp(28px,4vw,38px); line-height:1.1}
+.lede{margin:6px 0 0; color:var(--muted); max-width:60ch}
+.stage{position:relative; width:100%; max-width:100%; aspect-ratio:1/1; border-radius:24px; overflow:hidden; background:radial-gradient(circle at 50% 40%, var(--stage-a), var(--stage-b)); touch-action:none; cursor:grab}
+.stage:active{cursor:grabbing}
+.stage canvas{display:block; width:100%; height:100%}
+.msg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:24px; text-align:center; color:var(--muted)}
+.bar{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+.seg{display:inline-flex; flex-wrap:wrap; gap:4px; padding:4px; border-radius:999px; background:var(--surface); border:1px solid var(--line)}
+.seg button{min-height:40px; padding:0 20px; border-radius:999px; border:0; background:transparent; color:var(--muted); font:inherit; font-weight:600; cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-fg)}
+.btn{min-height:44px; padding:0 18px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--fg); font:inherit; font-weight:600; cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.hint{margin:0; font-size:13px; color:var(--muted)}
+.specs{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:0; padding:0; list-style:none}
+.specs li{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 16px; min-width:0}
+.specs b{display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.specs span{font-size:14px}
+.foot{margin:0; font-size:12px; color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Humanoid viewer</h1>
+    <p class="lede">The rigged humanoid on a turntable. Pick an animation, drag to turn, scroll to zoom. <a href="index.html">Play it with W A S D</a>.</p>
+  </div>
+
+  <div class="stage" id="stage" role="img" aria-label="A humanoid figure in a teal shirt and navy trousers, playing its selected animation">
+    <canvas id="c"></canvas>
+    <div class="msg" id="msg">Loading the model…</div>
+  </div>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Animation" id="clips"></div>
+    <button type="button" class="btn" id="play">Pause</button>
+    <button type="button" class="btn" id="spin" aria-pressed="false">Turntable</button>
+    <p class="hint" id="info" aria-live="polite"></p>
+  </div>
+
+  <ul class="specs">
+    <li><b>File</b><span>models/humanoid_rigged.glb, glTF 2.0 binary. Passes the Khronos glTF validator with no errors or warnings.</span></li>
+    <li><b>Rig</b><span>One skinned mesh on 22 bones with Mixamo-style names, T-pose bind, each bone pointing at its child.</span></li>
+    <li><b>Animations</b><span>Idle (3 s), Walk (1 s), Run (0.66 s) and Jump (0.95 s).</span></li>
+    <li><b>In Blender</b><span>File › Import › glTF 2.0. Imports as an Armature with the Body mesh bound to it.</span></li>
+  </ul>
+
+  <p class="foot">© 2026 Computational Classnotes · CC BY-NC-SA 4.0</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(() => {
+  const stage = document.getElementById('stage'), cv = document.getElementById('c'), msg = document.getElementById('msg'), info = document.getElementById('info');
+  const clipsEl = document.getElementById('clips'), bPlay = document.getElementById('play'), bSpin = document.getElementById('spin');
+  if (!window.THREE || !THREE.GLTFLoader) { msg.textContent = 'The 3D library did not load. Reload the page to try again. The .glb file still opens in Blender.'; return; }
+
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); }
+  catch (e) { msg.textContent = 'This browser could not start 3D graphics. The .glb file still opens in Blender.'; return; }
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+
+  // soft studio reflections
+  const pm = new THREE.PMREMGenerator(renderer);
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), new THREE.MeshBasicMaterial({ color: 0x8a8496, side: THREE.BackSide })));
+  const box = (hex, pos, size, power) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(size[0], size[1]), new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(power), side: THREE.DoubleSide }));
+    m.position.set(pos[0], pos[1], pos[2]); m.lookAt(0, 0, 0); env.add(m);
+  };
+  box(0xffffff, [-3, 3.5, 4], [3.5, 2], 3);
+  box(0xffe7cf, [4, 1.5, 3], [1.5, 3], 1.6);
+  scene.environment = pm.fromScene(env, 0.04).texture;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8a9d9, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 1.5);
+  key.position.set(-2.5, 5, 4);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  Object.assign(key.shadow.camera, { left: -2.5, right: 2.5, top: 2.5, bottom: -2.5, near: 0.5, far: 15 });
+  key.shadow.radius = 6;
+  scene.add(key);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.ShadowMaterial({ opacity: 0.22 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+  const view = { az: 0.5, el: 0.12, dist: 4.4 }, home = { ...view };
+  const target = new THREE.Vector3(0, 0.95, 0);
+  function placeCamera() {
+    camera.position.set(target.x + view.dist * Math.cos(view.el) * Math.sin(view.az), target.y + view.dist * Math.sin(view.el), target.z + view.dist * Math.cos(view.el) * Math.cos(view.az));
+    camera.lookAt(target);
+  }
+  function size() {
+    const r = stage.getBoundingClientRect();
+    if (!r.width) return;
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(size).observe(stage);
+  placeCamera();
+
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId); });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    view.az -= (e.clientX - drag.x) * 0.008;
+    view.el = Math.max(-0.2, Math.min(1.2, view.el + (e.clientY - drag.y) * 0.006));
+    drag = { x: e.clientX, y: e.clientY }; placeCamera();
+  });
+  const end = () => { drag = null; };
+  stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); view.dist = Math.max(2.6, Math.min(10, view.dist * (1 + e.deltaY * 0.001))); placeCamera(); }, { passive: false });
+  stage.addEventListener('dblclick', () => { Object.assign(view, home); placeCamera(); });
+
+  let mixer = null, actions = {}, current = 'Idle', paused = false, spin = false;
+  function pick(name) {
+    if (!actions[name]) return;
+    Object.values(actions).forEach((a) => a.stop());
+    actions[name].reset().play();
+    current = name; paused = false; bPlay.textContent = 'Pause';
+    clipsEl.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.textContent === name)));
+  }
+  bPlay.addEventListener('click', () => { paused = !paused; bPlay.textContent = paused ? 'Play' : 'Pause'; });
+  bSpin.addEventListener('click', () => { spin = !spin; bSpin.setAttribute('aria-pressed', String(spin)); });
+
+  // the model travels inside this page, so nothing has to be downloaded to show it
+  new THREE.GLTFLoader().load('models/humanoid_rigged.glb', (gltf) => {
+    const model = gltf.scene;
+    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+    scene.add(model);
+    mixer = new THREE.AnimationMixer(model);
+    gltf.animations.forEach((clip) => {
+      actions[clip.name] = mixer.clipAction(clip);
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = clip.name;
+      b.setAttribute('aria-pressed', 'false'); b.addEventListener('click', () => pick(clip.name)); clipsEl.appendChild(b);
+    });
+    pick('Idle');
+    msg.hidden = true;
+    info.textContent = 'Animations in this file: ' + gltf.animations.map((c) => c.name).join(', ') + '. Double-click the stage to reset the view.';
+  }, undefined, () => { msg.textContent = 'The model could not be loaded. Serve this folder over http (see README) and reload.'; });
+
+  const clock = new THREE.Clock();
+  (function loop() {
+    const dt = Math.min(0.05, clock.getDelta());
+    if (mixer && !paused) mixer.update(dt);
+    if (spin && !drag) { view.az += dt * 0.5; placeCamera(); }
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })();
+})();
+</script>
+</body>
+</html>

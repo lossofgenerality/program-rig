@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WASD Humanoid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+[hidden]{display:none!important}
+html{color-scheme:light dark}
+body{margin:0}
+
+/* Layout: a wide play field on top, a key legend and file notes below; on phones a touch pad overlays the field. */
+:root{
+  --bg:#EEF2F1; --surface:#FFFFFF; --fg:#162022; --muted:#556467; --line:#D3DDDC;
+  --accent:#1F7C82; --accent-fg:#FFFFFF; --key:#F4F7F6;
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1415; --surface:#162022; --fg:#E5EEEE; --muted:#9AACAE; --line:#28383A;
+    --accent:#4FC2C9; --accent-fg:#06191B; --key:#1D2A2C; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1415; --surface:#162022; --fg:#E5EEEE; --muted:#9AACAE; --line:#28383A;
+  --accent:#4FC2C9; --accent-fg:#06191B; --key:#1D2A2C; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--body); font-size:15px; line-height:1.5;
+  padding-block:22px 36px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap{max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:16px}
+h1{margin:0; font-family:var(--display); font-weight:700; font-size:clamp(26px,3.6vw,36px); line-height:1.1}
+.lede{margin:6px 0 0; color:var(--muted); max-width:66ch}
+.stage{position:relative; width:100%; max-width:100%; aspect-ratio:16/10; border-radius:18px; overflow:hidden; background:#9CC4D6; touch-action:none; outline:none}
+@media (max-width:640px){ .stage{aspect-ratio:3/4} }
+.stage:focus-visible{box-shadow:0 0 0 3px var(--accent)}
+.stage canvas{display:block; width:100%; height:100%}
+.overlay{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(10,20,22,.38); color:#F2F7F7; font-family:var(--display); font-size:20px; font-weight:700; text-align:center; padding:24px; cursor:pointer}
+.hud{position:absolute; left:12px; top:12px; display:flex; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; background:rgba(10,20,22,.55); color:#F2F7F7; font-family:var(--mono); font-size:12px; pointer-events:none}
+.hud i{width:8px; height:8px; border-radius:50%; background:#7FE0A0}
+.pad{position:absolute; bottom:14px; left:14px; right:14px; display:none; justify-content:space-between; align-items:flex-end; pointer-events:none}
+@media (pointer:coarse){ .pad{display:flex} }
+.dpad{display:grid; grid-template-columns:repeat(3,52px); grid-template-rows:repeat(2,52px); gap:6px; pointer-events:auto}
+.dpad button, .acts button{width:52px; height:52px; border-radius:14px; border:1px solid rgba(255,255,255,.35); background:rgba(10,20,22,.5); color:#fff; font:600 15px var(--mono); touch-action:none}
+.dpad .up{grid-column:2; grid-row:1} .dpad .lt{grid-column:1; grid-row:2} .dpad .dn{grid-column:2; grid-row:2} .dpad .rt{grid-column:3; grid-row:2}
+.acts{display:flex; gap:8px; pointer-events:auto}
+.acts button{width:64px; font-size:12px}
+.acts button[aria-pressed="true"]{background:rgba(31,124,130,.85)}
+.legend{display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 18px}
+.legend span{display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--muted)}
+kbd{display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; padding:0 7px; border-radius:7px; border:1px solid var(--line); border-bottom-width:3px; background:var(--key); color:var(--fg); font:500 12px var(--mono)}
+.notes{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:0; padding:0; list-style:none}
+.notes li{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 16px; min-width:0}
+.notes b{display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:600}
+.foot{margin:0; font-size:12px; color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>WASD Humanoid</h1>
+    <p class="lede"><a href="viewer.html">Open the turntable viewer</a>. A skinned humanoid on a Mixamo-style armature, saved as a glTF binary for Blender, dropped into a small yard so you can drive it. Click the field, then walk, run and jump.</p>
+  </div>
+
+  <div class="stage" id="stage" tabindex="0" role="application" aria-label="Play field. Use W A S D or the arrow keys to move the humanoid, Shift to run, Space to jump, and drag to turn the camera.">
+    <canvas id="c"></canvas>
+    <div class="hud" aria-hidden="true"><i></i><span id="hud">Idle</span></div>
+    <div class="pad" id="pad">
+      <div class="dpad">
+        <button type="button" class="up" data-k="w" aria-label="Forward">W</button>
+        <button type="button" class="lt" data-k="a" aria-label="Left">A</button>
+        <button type="button" class="dn" data-k="s" aria-label="Back">S</button>
+        <button type="button" class="rt" data-k="d" aria-label="Right">D</button>
+      </div>
+      <div class="acts">
+        <button type="button" id="runT" aria-pressed="false">Run</button>
+        <button type="button" id="jumpT">Jump</button>
+      </div>
+    </div>
+    <div class="overlay" id="overlay">Loading…</div>
+  </div>
+
+  <div class="legend">
+    <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
+    <span><kbd>Shift</kbd> run</span>
+    <span><kbd>Space</kbd> jump</span>
+    <span>Drag to turn the camera, scroll to zoom</span>
+    <span>Arrow keys work too</span>
+  </div>
+
+  <ul class="notes">
+    <li><b>File</b>humanoid_rigged.glb, glTF 2.0 binary, about 720 KB. Passes the Khronos glTF validator with no errors or warnings.</li>
+    <li><b>Animations</b>Idle (3 s), Walk (1 s), Run (0.66 s) as loops, and Jump (0.95 s) as a one-shot.</li>
+    <li><b>Rig</b>One smooth mesh (about 10,000 vertices) skinned to 22 bones with Mixamo-style names: Hips, Spine, Spine1, Spine2, Neck, Head, LeftShoulder, LeftArm, LeftForeArm, LeftHand, LeftUpLeg, LeftLeg, LeftFoot, LeftToeBase and the Right side. Bind pose is a T-pose.</li>
+    <li><b>In Blender</b>File › Import › glTF 2.0. It arrives as an Armature with the Body mesh bound to it; each animation is its own action on the armature.</li>
+  </ul>
+
+  <p class="foot">© 2026 Computational Classnotes · CC BY-NC-SA 4.0</p>
+</div>
+
+<script>
+// Load three.js and its glTF loader, trying a second and third CDN if one is blocked.
+(function () {
+  var SOURCES = [
+    ['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+     'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+     'https://unpkg.com/three@0.128.0/build/three.min.js'],
+    ['https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+     'https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js']
+  ];
+  var status = function (t) { var o = document.getElementById('overlay'); if (o) { o.hidden = false; o.textContent = t; } };
+  function load(list, i, done) {
+    if (i >= list.length) { status('The 3D library could not be downloaded. Check your connection or ad blocker, then reload.'); return; }
+    var s = document.createElement('script');
+    s.src = list[i]; s.onload = done; s.onerror = function () { load(list, i + 1, done); };
+    document.head.appendChild(s);
+  }
+  window.addEventListener('error', function (e) { status('Something went wrong starting the scene: ' + (e.message || 'unknown error') + '. Reload the page to try again.'); });
+  status('Loading the 3D engine…');
+  load(SOURCES[0], 0, function () { load(SOURCES[1], 0, function () { window.__startHumanoid(); }); });
+})();
+</script>
+<script>
+window.__startHumanoid = () => {
+  const stage = document.getElementById('stage'), cv = document.getElementById('c'), overlay = document.getElementById('overlay'), hud = document.getElementById('hud');
+  if (!window.THREE || !THREE.GLTFLoader) { overlay.textContent = 'The 3D library did not load. Reload the page to try again.'; return; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true }); }
+  catch (e) { overlay.textContent = 'This browser could not start 3D graphics.'; return; }
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  const sky = new THREE.Color('#A9CFE0');
+  scene.background = sky;
+  scene.fog = new THREE.Fog(sky, 18, 46);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+
+  scene.add(new THREE.HemisphereLight(0xdff2ff, 0x6f8a5a, 0.75));
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.6);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
+  sun.shadow.bias = -0.0005;
+  scene.add(sun, sun.target);
+
+  // ground: a tiled yard
+  const tc = document.createElement('canvas'); tc.width = tc.height = 256;
+  const tx = tc.getContext('2d');
+  tx.fillStyle = '#8DB36A'; tx.fillRect(0, 0, 256, 256);
+  tx.fillStyle = '#84AA62'; tx.fillRect(0, 0, 128, 128); tx.fillRect(128, 128, 128, 128);
+  tx.strokeStyle = 'rgba(255,255,255,0.18)'; tx.lineWidth = 2; tx.strokeRect(1, 1, 254, 254);
+  const gtex = new THREE.CanvasTexture(tc);
+  gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(30, 30); gtex.encoding = THREE.sRGBEncoding;
+  gtex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ map: gtex, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+  // props to walk around
+  const obstacles = [];
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0xC9935A, roughness: 0.85 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xB9B4AA, roughness: 0.9 });
+  const tealMat = new THREE.MeshStandardMaterial({ color: 0x2E8A8F, roughness: 0.6 });
+  [[4, 3, 1.0, crateMat], [5.3, 3.4, 0.7, crateMat], [-5, -2, 1.2, crateMat], [2, -7, 0.9, crateMat], [-8, 6, 1.0, crateMat]].forEach(([x, z, s, m]) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), m);
+    b.position.set(x, s / 2, z); b.rotation.y = x * 0.7; b.castShadow = b.receiveShadow = true; scene.add(b);
+    obstacles.push({ x, z, r: s * 0.72 });
+  });
+  [[-3, 5], [7, -4], [-9, -7], [10, 8], [0, 11]].forEach(([x, z], i) => {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 2.6, 18), i % 2 ? tealMat : stoneMat);
+    c.position.set(x, 1.3, z); c.castShadow = c.receiveShadow = true; scene.add(c);
+    obstacles.push({ x, z, r: 0.85 });
+  });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 1.9, 48), new THREE.MeshStandardMaterial({ color: 0xF2E9D8, roughness: 0.9 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005; ring.receiveShadow = true; scene.add(ring);
+  const LIMIT = 20;
+
+  // camera rig
+  const view = { az: Math.PI + 0.35, el: 0.32, dist: 6.2 };
+  const camTarget = new THREE.Vector3(0, 1.1, 0);
+  function placeCamera() {
+    camera.position.set(camTarget.x + view.dist * Math.cos(view.el) * Math.sin(view.az), camTarget.y + view.dist * Math.sin(view.el), camTarget.z + view.dist * Math.cos(view.el) * Math.cos(view.az));
+    camera.lookAt(camTarget);
+  }
+  function size() {
+    const r = stage.getBoundingClientRect(); if (!r.width) return;
+    renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(size).observe(stage);
+
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => {
+    stage.focus({ preventScroll: true });
+    if (ready) overlay.hidden = true;
+    if (e.target.closest('.pad')) return;
+    drag = { x: e.clientX, y: e.clientY }; stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    view.az -= (e.clientX - drag.x) * 0.006;
+    view.el = Math.max(0.05, Math.min(1.25, view.el + (e.clientY - drag.y) * 0.005));
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  const endDrag = () => { drag = null; };
+  stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); view.dist = Math.max(2.8, Math.min(14, view.dist * (1 + e.deltaY * 0.001))); }, { passive: false });
+
+  // input
+  const keys = { w: false, a: false, s: false, d: false, run: false };
+  let runToggle = false, jumpReq = false;
+  const MAP = { KeyW: 'w', ArrowUp: 'w', KeyA: 'a', ArrowLeft: 'a', KeyS: 's', ArrowDown: 's', KeyD: 'd', ArrowRight: 'd' };
+  const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+  window.addEventListener('keydown', (e) => {
+    if (typing(e)) return;
+    if (MAP[e.code]) { keys[MAP[e.code]] = true; e.preventDefault(); }
+    if (e.key === 'Shift') keys.run = true;
+    if (e.code === 'Space') { jumpReq = true; e.preventDefault(); }
+    if (ready) overlay.hidden = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    if (MAP[e.code]) keys[MAP[e.code]] = false;
+    if (e.key === 'Shift') keys.run = false;
+  });
+  window.addEventListener('blur', () => { keys.w = keys.a = keys.s = keys.d = keys.run = false; });
+  overlay.addEventListener('click', () => { if (ready) { overlay.hidden = true; stage.focus({ preventScroll: true }); } });
+  document.querySelectorAll('.dpad button').forEach((b) => {
+    const k = b.dataset.k;
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[k] = true; b.setPointerCapture(e.pointerId); });
+    const up = () => { keys[k] = false; };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+  });
+  const runT = document.getElementById('runT');
+  runT.addEventListener('click', () => { runToggle = !runToggle; runT.setAttribute('aria-pressed', String(runToggle)); });
+  document.getElementById('jumpT').addEventListener('click', () => { jumpReq = true; });
+
+  // character
+  let hero = null, mixer = null, acts = {}, active = null, jumping = 0, ready = false;
+  overlay.hidden = false; overlay.textContent = 'Loading the character…';
+  const pos = new THREE.Vector3(0, 0, 0);
+  let yaw = 0, speed = 0, jumpY = 0;
+  const WALK = 1.35, RUN = 3.7;
+  function fadeTo(name, dur = 0.22) {
+    const next = acts[name];
+    if (!next || active === next) return;
+    next.reset().setEffectiveWeight(1).fadeIn(dur).play();
+    if (active) active.fadeOut(dur);
+    active = next;
+  }
+
+  new THREE.GLTFLoader().load('models/humanoid_rigged.glb', (gltf) => {
+    hero = gltf.scene;
+    hero.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
+    scene.add(hero);
+    mixer = new THREE.AnimationMixer(hero);
+    gltf.animations.forEach((c) => { acts[c.name] = mixer.clipAction(c); });
+    acts.Jump.setLoop(THREE.LoopOnce, 1); acts.Jump.clampWhenFinished = true;
+    fadeTo('Idle', 0);
+    ready = true;
+    overlay.textContent = 'Click here, or press W A S D, to play';
+  }, undefined, (err) => {
+    overlay.hidden = false;
+    overlay.textContent = location.protocol === 'file:'
+      ? 'Browsers block loading the model from a file opened on disk. Serve this folder over http (see README).'
+      : 'The character file models/humanoid_rigged.glb could not be loaded (' + ((err && err.message) || 'network error') + ').';
+  });
+
+  const clock = new THREE.Clock();
+  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), move = new THREE.Vector3();
+  function step(dt) {
+    if (!hero) return;
+    fwd.set(-Math.sin(view.az), 0, -Math.cos(view.az));
+    right.set(Math.cos(view.az), 0, -Math.sin(view.az));
+    move.set(0, 0, 0)
+      .addScaledVector(fwd, (keys.w ? 1 : 0) - (keys.s ? 1 : 0))
+      .addScaledVector(right, (keys.d ? 1 : 0) - (keys.a ? 1 : 0));
+    const moving = move.lengthSq() > 0;
+    const running = keys.run || runToggle;
+    const target = moving ? (running ? RUN : WALK) : 0;
+    speed += (target - speed) * (1 - Math.exp(-dt * 8));
+    if (moving) {
+      move.normalize();
+      const want = Math.atan2(move.x, move.z);
+      let d = want - yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+      yaw += d * (1 - Math.exp(-dt * 12));
+    }
+    if (speed > 0.02) {
+      pos.x += Math.sin(yaw) * speed * dt; pos.z += Math.cos(yaw) * speed * dt;
+      for (const o of obstacles) {
+        const dx = pos.x - o.x, dz = pos.z - o.z, dd = Math.hypot(dx, dz), min = o.r + 0.3;
+        if (dd < min && dd > 1e-4) { pos.x = o.x + dx / dd * min; pos.z = o.z + dz / dd * min; }
+      }
+      pos.x = Math.max(-LIMIT, Math.min(LIMIT, pos.x)); pos.z = Math.max(-LIMIT, Math.min(LIMIT, pos.z));
+    }
+
+    if (jumpReq && !jumping) { jumping = 0.0001; fadeTo('Jump', 0.08); }
+    jumpReq = false;
+    if (jumping) {
+      jumping += dt;
+      const u = (jumping - 0.28) / 0.44;
+      jumpY = u > 0 && u < 1 ? 4 * 0.5 * u * (1 - u) : 0;
+      if (jumping > 0.9) { jumping = 0; jumpY = 0; active = null; }
+    }
+    if (!jumping) {
+      if (speed > 2.4) { fadeTo('Run'); acts.Run.timeScale = speed / 3.6; }
+      else if (speed > 0.15) { fadeTo('Walk'); acts.Walk.timeScale = Math.max(0.4, speed / 1.3); }
+      else fadeTo('Idle', 0.3);
+    }
+    hero.position.set(pos.x, jumpY, pos.z);
+    hero.rotation.y = yaw;
+    mixer.update(dt);
+    hud.textContent = jumping ? 'Jump' : speed > 2.4 ? 'Run' : speed > 0.15 ? 'Walk' : 'Idle';
+
+    camTarget.lerp(new THREE.Vector3(pos.x, 1.1 + jumpY * 0.4, pos.z), 1 - Math.exp(-dt * 6));
+    sun.position.set(pos.x - 6, 12, pos.z + 5); sun.target.position.set(pos.x, 0, pos.z);
+  }
+
+  (function loop() {
+    const dt = Math.min(0.05, clock.getDelta());
+    step(dt);
+    placeCamera();
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  })();
+};
+</script>
+</body>
+</html>
